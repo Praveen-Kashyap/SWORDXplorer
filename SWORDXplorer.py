@@ -63,7 +63,7 @@ def get_valid_api_fields():
     ]
 
 # --- App configuration ---
-st.set_page_config(page_title="SWOT River Analyzer", layout="wide")
+st.set_page_config(page_title="SWORDXplorer", layout="wide")
 st.title("SWOT Hydrocron API Data Download")
 
 # --- Session State Initialization ---
@@ -139,7 +139,6 @@ if st.session_state.geo_df is not None:
     with bc:
         if st.button("Select All Fields"):
             st.session_state.selected_fields = valid_fields
-            st.experimental_rerun()
 
     throttle_delay = st.slider("Request Delay (seconds)", 0.1, 2.0, 0.5, 0.1)
 
