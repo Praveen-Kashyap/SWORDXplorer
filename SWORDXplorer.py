@@ -8,10 +8,10 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
+import zipfile
 
 # --- Helper Functions ---
 def robust_rmtree(path):
-    """Robustly remove directory tree with retry logic"""
     for _ in range(3):
         try:
             shutil.rmtree(path)
@@ -20,16 +20,12 @@ def robust_rmtree(path):
             time.sleep(0.5)
     return False
 
-
 def safe_temp_dir():
-    """Create a secure temporary directory"""
     temp_dir = tempfile.mkdtemp(prefix="sword_temp_")
     os.makedirs(temp_dir, exist_ok=True)
     return temp_dir
 
-
 def get_valid_api_fields():
-    """Return list of valid API fields"""
     return [
         "area_det_u", "area_detct", "area_total", "area_tot_u", "area_wse",
         "collection_shortname", "collection_version", "continent_id", "crid", "cycle_id",
@@ -62,11 +58,11 @@ def get_valid_api_fields():
         "xovr_cal_c", "xovr_cal_q", "xtrk_dist"
     ]
 
-# --- App configuration ---
+# --- App Config ---
 st.set_page_config(page_title="SWORDXplorer", layout="wide")
 st.title("SWOT Hydrocron API Data Download")
 
-# --- Session State Initialization ---
+# --- Session State ---
 if 'geo_df' not in st.session_state:
     st.session_state.geo_df = None
 if 'upload_key' not in st.session_state:
@@ -74,10 +70,8 @@ if 'upload_key' not in st.session_state:
 if 'valid_fields' not in st.session_state:
     st.session_state.valid_fields = get_valid_api_fields()
 
-# --- Main Layout ---
+# --- Upload Section ---
 st.header("Data Input")
-
-# SWORD file upload
 sword_file = st.file_uploader(
     "Upload SWORD Shapefile", 
     type=['shp', 'dbf', 'shx', 'prj'],
@@ -85,7 +79,6 @@ sword_file = st.file_uploader(
     key="sword_uploader"
 )
 
-# Process uploaded files
 if sword_file:
     current_key = tuple((f.name, f.size) for f in sword_file)
     if current_key != st.session_state.upload_key:
@@ -106,7 +99,6 @@ if sword_file:
             st.error("No .shp file found in upload")
         robust_rmtree(temp_dir)
 
-# Show filters if data loaded
 if st.session_state.geo_df is not None:
     st.subheader("Filter Parameters")
     cols = st.session_state.geo_df.columns.tolist()
@@ -180,7 +172,6 @@ if st.session_state.geo_df is not None:
                     resp = requests.get(url, timeout=30)
                 if resp.status_code == 400:
                     st.warning(f"Bad request for reach {rid}: {resp.text}")
-                    # Log not-found reaches
                     with open(LOG_FILE, "a") as logf:
                         logf.write(f"{datetime.now().isoformat()} - {rid}\n")
                     errors += 1
@@ -212,7 +203,23 @@ if st.session_state.geo_df is not None:
             with st.expander("Combined Data"):
                 st.dataframe(combined)
             with open(combined_path, "rb") as f:
-                st.download_button("💾 Download CSV", f, file_name=os.path.basename(combined_path))
+                st.download_button("📅 Download Combined CSV", f, file_name=os.path.basename(combined_path))
+
+            # --- ZIP Everything ---
+            zip_path = os.path.join(OUTPUT_DIR, f"{safe_val}_full_package.zip")
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                for fname in os.listdir(OUTPUT_DIR):
+                    fpath = os.path.join(OUTPUT_DIR, fname)
+                    if os.path.isfile(fpath):
+                        zipf.write(fpath, arcname=fname)
+
+            with open(zip_path, "rb") as zf:
+                st.download_button(
+                    label="📦 Download Full Output Package (ZIP)",
+                    data=zf,
+                    file_name=os.path.basename(zip_path),
+                    mime="application/zip"
+                )
             st.info(f"All files saved in {OUTPUT_DIR}")
         else:
             st.warning("No data retrieved.")
